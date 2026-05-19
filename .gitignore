@@ -1,0 +1,15 @@
+.env
+.env.*
+.streamlit/secrets.toml
+.pytest-tmp/
+.pytest_cache/
+.playwright-mcp/
+__pycache__/
+*.py[cod]
+*.log
+venv/
+*.db
+output/
+build/
+dist/
+*.egg-info/
