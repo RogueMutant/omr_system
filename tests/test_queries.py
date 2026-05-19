@@ -136,3 +136,39 @@ def test_save_result_creates_student_assessment(db_path: str) -> None:
     assessments = get_assessments_by_exam(exam_id, db_path)
     assert assessments[0]["student_identifier"] == "STU001"
     assert assessments[0]["subject_count"] == 1
+
+
+def test_get_assessments_query_groups_all_selected_non_aggregate_columns() -> None:
+    class CapturingCursor:
+        def fetchall(self) -> list[dict]:
+            return []
+
+    class CapturingConnection:
+        sql = ""
+
+        def __enter__(self) -> "CapturingConnection":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            pass
+
+        def execute(self, sql: str, params: tuple) -> CapturingCursor:
+            self.sql = sql
+            return CapturingCursor()
+
+    conn = CapturingConnection()
+
+    import database.queries as queries
+
+    original_connect = queries._connect
+    queries._connect = lambda db_path: conn
+    try:
+        get_assessments_by_exam(1, "postgresql://example")
+    finally:
+        queries._connect = original_connect
+
+    normalized = " ".join(conn.sql.split())
+    assert (
+        "GROUP BY a.id, a.exam_id, a.student_id, a.created_at, a.updated_at, "
+        "s.student_identifier, s.name, s.class_group"
+    ) in normalized

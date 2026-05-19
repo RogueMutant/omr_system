@@ -227,7 +227,15 @@ def get_assessments_by_exam(exam_id: int, db_path: str = DB_PATH) -> list[dict[s
                 JOIN students s ON s.id = a.student_id
                 LEFT JOIN results r ON r.assessment_id = a.id
                 WHERE a.exam_id = ?
-                GROUP BY a.id
+                GROUP BY
+                    a.id,
+                    a.exam_id,
+                    a.student_id,
+                    a.created_at,
+                    a.updated_at,
+                    s.student_identifier,
+                    s.name,
+                    s.class_group
                 ORDER BY s.name
                 """,
                 (exam_id,),
