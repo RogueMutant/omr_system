@@ -387,7 +387,8 @@ def _question_stats(subject_id: int, total: int, db_path: str) -> dict[int, dict
 def regrade_subject(subject_id: int, db_path: str = DB_PATH) -> None:
     """Delete all results and result details for a subject."""
     with _connect(db_path) as conn:
-        result_ids = [row["id"] for row in conn.execute("SELECT id FROM results WHERE subject_id = ?", (subject_id,))]
+        result_rows = conn.execute("SELECT id FROM results WHERE subject_id = ?", (subject_id,)).fetchall()
+        result_ids = [row["id"] for row in result_rows]
         if result_ids:
             placeholders = ",".join("?" for _ in result_ids)
             conn.execute(f"DELETE FROM result_details WHERE result_id IN ({placeholders})", result_ids)

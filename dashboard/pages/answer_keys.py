@@ -70,8 +70,13 @@ def _entry_section(subject_id: int, existing: dict[int, str]) -> None:
         st.code("question,answer\n1,A\n2,B\n...\n60,E", language="csv")
         upload = st.file_uploader("Answer key CSV", type=["csv"])
         if upload and st.button("Save CSV Answer Key"):
-            df = pd.read_csv(upload)
-            _save_key(subject_id, _csv_key(df))
+            try:
+                df = pd.read_csv(upload)
+                key = _csv_key(df)
+            except (ValueError, pd.errors.ParserError) as exc:
+                st.error(str(exc))
+                return
+            _save_key(subject_id, key)
 
 
 def _manual_key(existing: dict[int, str]) -> dict[int, str]:
@@ -88,9 +93,22 @@ def _manual_key(existing: dict[int, str]) -> dict[int, str]:
 
 def _csv_key(df: pd.DataFrame) -> dict[int, str]:
     """Convert uploaded CSV rows to an answer key dict."""
-    if set(df.columns) < {"question", "answer"}:
+    normalized_columns = {str(column).strip().lower(): column for column in df.columns}
+    if not {"question", "answer"} <= set(normalized_columns):
         raise ValueError("CSV must include question and answer columns")
-    return {int(row.question): str(row.answer).strip().upper() for row in df.itertuples()}
+    key: dict[int, str] = {}
+    for _, row in df.iterrows():
+        raw_question = row[normalized_columns["question"]]
+        raw_answer = row[normalized_columns["answer"]]
+        try:
+            question = int(raw_question)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Question values must be numbers") from exc
+        answer = str(raw_answer).strip().upper()
+        if not answer or answer == "NAN":
+            raise ValueError("Answer values cannot be blank")
+        key[question] = answer
+    return key
 
 
 def _save_key(subject_id: int, key: dict[int, str]) -> None:

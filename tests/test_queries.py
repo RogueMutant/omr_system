@@ -95,6 +95,47 @@ def test_regrade_subject_deletes_results_but_not_students_or_subject(db_path: st
     assert get_students_by_exam(exam_id, db_path)[0]["name"] == "Ada"
 
 
+def test_regrade_subject_uses_fetchall_for_postgres_cursor() -> None:
+    class CapturingCursor:
+        def __init__(self, rows: list[dict] | None = None) -> None:
+            self.rows = rows or []
+
+        def fetchall(self) -> list[dict]:
+            return self.rows
+
+    class CapturingConnection:
+        def __init__(self) -> None:
+            self.sql: list[str] = []
+            self.params: list[tuple | list] = []
+
+        def __enter__(self) -> "CapturingConnection":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            pass
+
+        def execute(self, sql: str, params: tuple | list = ()) -> CapturingCursor:
+            self.sql.append(sql)
+            self.params.append(params)
+            if sql.startswith("SELECT id FROM results"):
+                return CapturingCursor([{"id": 7}, {"id": 8}])
+            return CapturingCursor()
+
+    conn = CapturingConnection()
+
+    import database.queries as queries
+
+    original_connect = queries._connect
+    queries._connect = lambda db_path: conn
+    try:
+        regrade_subject(3, "postgresql://example")
+    finally:
+        queries._connect = original_connect
+
+    assert any("DELETE FROM result_details" in sql for sql in conn.sql)
+    assert any("DELETE FROM results WHERE subject_id" in sql for sql in conn.sql)
+
+
 def test_save_students_skips_duplicate_student_ids(db_path: str) -> None:
     exam_id = create_exam("Exam", db_path)
     save_students(
